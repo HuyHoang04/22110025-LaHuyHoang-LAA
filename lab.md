@@ -116,3 +116,157 @@ openssl dgst -sha256 -verify client_public_key.pem -signature signed_message.bin
 ![1732593154567](images/lab/1732593154567.png)
 
 Output is: Verified OK then COMPLETE
+
+# Task 2: Encrypting large message
+
+Create a text file 56 bytes.
+
+**Question 1**: Encrypt the file with aes-256 cipher in CFB and OFB modes. How do you evaluate both cipher as far as error propagation and adjacent plaintext blocks are concerned. **Answer 1**:
+
+## Create a Text File
+
+Create a file with more than 56 bytes:
+
+```
+echo "This is a sample text file for encryption testing. It is more than 56 bytes long." > large_text_file.txt
+```
+
+![1732595743046](images/lab/1732595743046.png)
+
+## Generate AES Key and Initialization Vector
+
+Generate a random 256-bit key for AES-256:
+
+```
+openssl rand -hex 32 > aes_key.txt
+```
+
+![1732595862325](images/lab/1732595862325.png)
+
+- Generate a random 128-bit IV:
+
+```
+openssl rand -hex 16 > aes_iv.txt
+```
+
+## Encrypt with AES-256-CFB Mode
+
+- Encrypt the file:
+
+```
+openssl enc -aes-256-cfb -in large_text_file.txt -out encrypted_cfb.bin -K $(cat aes_key.txt) -iv $(cat aes_iv.txt)
+```
+
+![1732595962553](images/lab/1732595962553.png)
+
+## Encrypt with AES-256-OFB Mode
+
+- Encrypt the file:
+
+```
+openssl enc -aes-256-ofb -in large_text_file.txt -out encrypted_ofb.bin -K $(cat aes_key.txt) -iv $(cat aes_iv.txt)
+```
+
+![1732596080802](images/lab/1732596080802.png)
+
+## Evaluation: CFB vs. OFB
+
+**Error Propagation:**
+
+- **CFB Mode:**
+  Error propagation is pronounced in CFB mode. A single error in a ciphertext block will disrupt the current and subsequent plaintext blocks during decryption, as the feedback mechanism relies on previous blocks. This means that even a small error can affect the entire decryption process.
+- **OFB Mode:**
+  In contrast, OFB mode exhibits minimal error propagation. An error in one ciphertext block only impacts the corresponding plaintext block during decryption. Because the key stream is generated independently of the ciphertext, errors do not affect subsequent blocks.
+
+**Adjacent Plaintext Blocks:**
+
+- **CFB Mode:**
+  Due to the feedback mechanism, adjacent plaintext blocks are interdependent. Any corruption in a ciphertext block will affect the decryption of not just the current block, but also the subsequent blocks, as they depend on the feedback from previous ciphertext blocks.
+- **OFB Mode:**
+  In OFB mode, adjacent plaintext blocks are independent of each other. The key stream is generated solely from the IV and key, so an error in one ciphertext block has no effect on the others. Each plaintext block is decrypted independently of the others.
+
+**Question 2**: Modify the 8th byte of encrypted file in both modes (this emulates corrupted ciphertext). Decrypt corrupted file, watch the result and give your comment on Chaining dependencies and Error propagation criteria.
+
+**Answer 2**:
+
+## Step 1: Modify the 8th Byte in Encrypted Files
+
+### 1. Modify the CFB-encrypted file
+
+- Convert the binary file to hex format:
+
+```
+xxd encrypted_cfb.bin > encrypted_cfb.hex
+```
+
+![1732596469090](images/lab/1732596469090.png)
+
+- Open the hex file and edit the 8th byte:
+
+```
+nano encrypted_cfb.hex
+```
+
+Replace "fb" with "ff". Result after correction:
+
+![1732596490052](images/lab/1732596490052.png)
+
+- Convert the modified hex file back to binary:
+
+```
+xxd -r encrypted_cfb.hex > corrupted_cfb.bin
+```
+
+### Modify the OFB-encrypted file (same as cfb)
+
+- Convert the binary file to hex format:
+
+```
+xxd encrypted_ofb.bin > encrypted_ofb.hex
+```
+
+- Open the hex file and edit the 8th byte:
+
+```
+nano encrypted_ofb.hex
+```
+
+Replace "ab" with "ff". Result after correction:
+
+- Convert the modified hex file back to binary:
+
+```
+xxd -r encrypted_ofb.hex > corrupted_ofb.bin
+```
+
+## Step 2: Decrypt the Corrupted Files
+
+### 1. Decrypt the CFB-corrupted file
+
+- Decrypt the file:
+
+```
+openssl enc -aes-256-cfb -d -in corrupted_cfb.bin -out corrupted_decrypted_cfb.txt -K $(cat aes_key.txt) -iv $(cat aes_iv.txt)
+```
+
+- Output
+
+```
+This is a sample text file for testing encryption. It is more than 56 bytes long.
+```
+
+![1732596692675](images/lab/1732596692675.png)
+
+### 2. Decrypt the OFB-corrupted file
+
+- Decrypt the file:
+
+```
+openssl enc -aes-256-ofb -d -in corrupted_ofb.bin -out corrupted_decrypted_ofb.txt -K $(cat aes_key.txt) -iv $(cat aes_iv.txt)
+```
+
+- Output:
+
+```
+This is a sample text file for testing encryption. It is more than 56 bytes long.
+```
